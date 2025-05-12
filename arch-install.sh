@@ -159,7 +159,7 @@ options cryptdevice=UUID=\$UUID:cryptroot root=/dev/mapper/cryptroot rw
 ENTRY
 
 systemctl enable NetworkManager
-enable gdm
+systemctl enable gdm
 systemctl enable sshd
 systemctl set-default graphical.target
 EOF
