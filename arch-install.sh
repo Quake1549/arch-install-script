@@ -140,8 +140,8 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
 # Set root password
-echo "Setting root password."
-arch-chroot /mnt /bin/passwd
+echo "Set root password:"
+passwd
 
 # Create user and set password
 useradd -m -G wheel,video,audio "\$USERNAME"
