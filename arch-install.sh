@@ -108,7 +108,7 @@ sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 4/' /etc/pacman.conf
 # Step 6: Install base system with GNOME
 echo "📦 Installing base system and GNOME desktop..."
 pacstrap /mnt base base-devel nano networkmanager lvm2 cryptsetup linux linux-firmware sudo xorg-server \
-    gnome gnome-extra gdm openssh
+    gnome gdm openssh
 
 # Step 7: Generate fstab
 echo "📝 Generating fstab..."
