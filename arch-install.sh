@@ -70,7 +70,6 @@ fi
 echo "EFI: $EFI_PART, SWAP: $SWAP_PART, ROOT: $ROOT_PART"
 
 # Step 4: Format and mount
-
 echo "🔧 Initializing swap..."
 mkswap "$SWAP_PART"
 swapon "$SWAP_PART"
@@ -93,7 +92,6 @@ else
     ROOT_MOUNT="$ROOT_PART"
 fi
 
-# Mount root and EFI
 mkdir -p /mnt
 mount "$ROOT_MOUNT" /mnt
 mkdir -p /mnt/boot
@@ -105,7 +103,7 @@ echo "✅ Partitions ready and mounted."
 echo "⚙️ Tuning /etc/pacman.conf for faster downloads..."
 sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 4/' /etc/pacman.conf
 
-# Step 6: Install base system with GNOME
+# Step 6: Install base system and GNOME
 echo "📦 Installing base system and GNOME desktop..."
 pacstrap /mnt base base-devel nano networkmanager lvm2 cryptsetup linux linux-firmware sudo xorg-server \
     gnome gdm openssh
@@ -114,54 +112,39 @@ pacstrap /mnt base base-devel nano networkmanager lvm2 cryptsetup linux linux-fi
 echo "📝 Generating fstab..."
 genfstab -U /mnt >> /mnt/etc/fstab
 
-# Step 8: Chroot configuration
-echo "🔧 Entering chroot to configure system..."
-arch-chroot /mnt /bin/bash <<EOF
-set -euo pipefail
-
-# Hostname and locale prompts
+# Step 8: Prompt user for hostname/username
 read -rp "Enter hostname: " HOSTNAME
 read -rp "Enter username: " USERNAME
 
-echo "\$HOSTNAME" > /etc/hostname
+# Step 9: Run chroot setup (excluding password setup)
+echo "🔧 Configuring system in chroot..."
+arch-chroot /mnt /bin/bash -e <<EOF
+set -euo pipefail
+
+echo "$HOSTNAME" > /etc/hostname
 cat <<HOSTS > /etc/hosts
 127.0.0.1   localhost
 ::1         localhost
-127.0.1.1   \$HOSTNAME.localdomain \$HOSTNAME
+127.0.1.1   $HOSTNAME.localdomain $HOSTNAME
 HOSTS
 
-# Timezone and clock
 ln -sf /usr/share/zoneinfo/\$(timedatectl show -p Timezone --value) /etc/localtime
 hwclock --systohc
 
-# Locale
 sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
 locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
-# Set root password
-echo "Set root password:"
-passwd
+useradd -m -G wheel,video,audio "$USERNAME"
+sed -i 's/^# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
 
-# Create user and set password
-useradd -m -G wheel,video,audio "\$USERNAME"
-echo "Set password for \$USERNAME:"
-passwd "\$USERNAME"
-
-# Enable sudo for wheel group
-sed -i 's/^# \(%wheel ALL=(ALL) ALL\)/\1/' /etc/sudoers
-
-# Initramfs: add encrypt hook if encrypted
 if [ "$ENCRYPTED" = true ]; then
     sed -i 's/block/& encrypt/' /etc/mkinitcpio.conf
 fi
 mkinitcpio -P
 
-# Install systemd-boot
 bootctl --path=/boot install
-
-# Bootloader configuration
-UUID=\$(blkid -s UUID -o value "$ROOT_PART")
+UUID=\$(blkid -s UUID -o value $ROOT_PART)
 cat <<LOADER > /boot/loader/loader.conf
 default arch
 timeout 5
@@ -175,18 +158,29 @@ initrd  /initramfs-linux.img
 options cryptdevice=UUID=\$UUID:cryptroot root=/dev/mapper/cryptroot rw
 ENTRY
 
-# Enable services
 systemctl enable NetworkManager
-systemctl enable gdm
+enable gdm
 systemctl enable sshd
 systemctl set-default graphical.target
 EOF
 
-# Step 9: Cleanup and reboot
-echo "🚀 Installation complete! Unmounting and rebooting..."
+# Step 10: Prompt for passwords
+echo "🔐 Please run the following inside the chroot to set passwords:"
+echo "------------------------------------------------------------"
+echo "arch-chroot /mnt"
+echo "passwd"
+echo "passwd $USERNAME"
+echo "exit"
+echo "------------------------------------------------------------"
+echo "After exiting the chroot, the system will reboot."
+
+# Step 11: Wait for user to set passwords
+ask_yes_no "Have you set the passwords inside chroot? Continue with reboot?"
+
+# Step 12: Cleanup and reboot
+echo "🚀 Unmounting and rebooting..."
 umount -R /mnt
 if [ "$ENCRYPTED" = true ]; then
     cryptsetup close cryptroot
 fi
 reboot
-
