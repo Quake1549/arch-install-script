@@ -19,7 +19,10 @@ echo "=== Arch Linux Automated Install (Encrypted Root) with GNOME ==="
 # Step 1: Sync time
 echo "🔄 Enabling NTP and checking system clock..."
 timedatectl set-ntp true
-timedatectl status | grep 'System clock synchronized'
+synced=$(timedatectl status | grep 'System clock synchronized')
+timezone=$(timedatectl show -p Timezone --value)
+echo "$synced"
+echo "Current timezone is: $timezone"
 if ask_yes_no "Is the time and timezone correct?"; then
     echo "Continuing..."
 else
@@ -28,7 +31,6 @@ else
     echo "Set timezone example: timedatectl set-timezone Region/City"
     exit 1
 fi
-
 # Step 2: Disk selection
 echo -e "\n💽 Select disk for installation:"
 echo "1) /dev/sda"
@@ -165,14 +167,13 @@ systemctl set-default graphical.target
 EOF
 
 # Step 10: Prompt for passwords
-echo "🔐 Please run the following inside the chroot to set passwords:"
-echo "------------------------------------------------------------"
-echo "arch-chroot /mnt"
-echo "passwd"
-echo "passwd $USERNAME"
-echo "exit"
-echo "------------------------------------------------------------"
-echo "After exiting the chroot, the system will reboot."
+echo "🔐 Entering chroot for password setup. Please run the following commands:"
+echo "  passwd"
+echo "  passwd \$USERNAME"
+echo "  exit"
+echo "Once you exit the chroot, the script will continue."
+
+arch-chroot /mnt
 
 # Step 11: Wait for user to set passwords
 ask_yes_no "Have you set the passwords inside chroot? Continue with reboot?"
@@ -184,3 +185,4 @@ if [ "$ENCRYPTED" = true ]; then
     cryptsetup close cryptroot
 fi
 reboot
+
